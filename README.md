@@ -24,9 +24,9 @@ The prescription is split into its two principal meridians (power along the axis
 
 The accommodation buttons let you explore what a young, strongly accommodating eye can do: it can neutralize hyperopia, but with astigmatism it can only bring *one* meridian into focus at a time; the other stays blurred by the full cylinder value.
 
-## Limits
+## Limits and calibration
 
-This is geometric optics only. It ignores diffraction, higher-order aberrations, the Stiles–Crawford effect, depth of focus and neural adaptation, so real vision is somewhat sharper than shown, and the "20/xx" estimate is a rough rule of thumb rather than a measurement. Infants and toddlers also have immature acuity even with perfect correction. This is an educational tool, not medical advice.
+Pure geometric optics overstates how blurry things *look* to the person: it ignores diffraction and higher-order aberrations, and above all neural adaptation, which makes habitual blur feel sharper than a blurred picture looks to a normally sighted viewer. So the simulator applies Stiles–Crawford weighting across the pupil, defaults to a 3 mm pupil (a bright exam room), and draws the blur at 0.7× the geometric size by default; a "Blur scale" slider lets you see pure ray optics at 1.0. The 20/xx readout is a separate empirical fit to published uncorrected-acuity data (roughly 1 D → 20/60, 2 D → 20/135, 3 D → 20/220), not a measurement from the picture. Infants and toddlers also have immature acuity even with perfect correction. This is an educational tool, not medical advice.
 
 ## License
 

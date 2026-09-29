@@ -69,8 +69,8 @@
       <div class="row"><label>Sphere</label><input type="range" id="sph" min="-10" max="10" step="0.25"><input type="number" id="sphN" step="0.25"></div>
       <div class="row"><label>Cylinder</label><input type="range" id="cyl" min="-6" max="6" step="0.25"><input type="number" id="cylN" step="0.25"></div>
       <div class="row"><label>Axis</label><input type="range" id="axis" min="0" max="180" step="1"><input type="number" id="axisN" step="1" min="0" max="180"></div>
-      <div class="row"><label>Pupil (mm)</label><input type="range" id="pupil" min="2" max="8" step="0.5" value="4"><input type="number" id="pupilN" step="0.5" value="4"></div>
-      <p class="hint">Cylinder can be entered in plus or minus form; the axis is read the way it is written on the script.</p>
+      <div class="row"><label>Pupil (mm)</label><input type="range" id="pupil" min="2" max="8" step="0.5" value="3"><input type="number" id="pupilN" step="0.5" value="3"></div>
+      <p class="hint">Cylinder can be entered in plus or minus form; the axis is read the way it is written on the script. Pupil: a bright exam room is about 3 mm, a dim room 5–6 mm; toddlers run a little larger.</p>
       <h2 style="margin-top:14px">Presets</h2>
       <div class="seg">
         <button class="btn" data-preset="0,0,0">Perfect vision</button>
@@ -92,6 +92,12 @@
         <button class="btn" data-acc="clc">Least confusion</button>
       </div>
       <p class="hint">A young child has a lot of accommodation and can "lens away" farsightedness, but not astigmatism: focusing one meridian throws the other one out. Try the buttons to see the two possible sharp directions.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Realism</h2>
+      <div class="row"><label>Blur scale</label><input type="range" id="scale" min="0.3" max="1" step="0.05" value="0.7"><input type="number" id="scaleN" step="0.05" min="0.3" max="1" value="0.7"></div>
+      <p class="hint">1.0 is pure ray optics, which is known to overstate how blurry things <i>look</i> to the person: the brain adapts to habitual blur, and letters stay recognizable past the point geometry says they shouldn't. 0.7 lines up reasonably with published uncorrected-acuity data. The Stiles–Crawford effect (retina favors light through the pupil center) is always applied.</p>
     </div>
 
     <div class="panel">
@@ -125,7 +131,7 @@
     </div>
     <details style="margin-top:10px">
       <summary>How the simulation works, and its limits</summary>
-      <p>The refraction is split into its two principal meridians. After subtracting any accommodation, each meridian's leftover defocus (in diopters) spreads a point of light into a line whose angular length is roughly <i>pupil diameter × defocus</i>. Both meridians together make an elliptical blur patch, which is convolved with the image using WebGL. This is plain geometric optics: it ignores diffraction, higher-order aberrations, the Stiles–Crawford effect and neural adaptation, so real perception is a little sharper than shown, and the "20/xx" estimate is a rough rule of thumb, not a measurement. For an infant or toddler the retina and visual cortex are still maturing, so even a perfectly corrected eye does not see 20/20 yet.</p>
+      <p>The refraction is split into its two principal meridians. After subtracting any accommodation, each meridian's leftover defocus (in diopters) spreads a point of light into a line whose angular length is roughly <i>pupil diameter × defocus</i>. Both meridians together make an elliptical blur patch, which is convolved with the image using WebGL. Sample weights follow the Stiles–Crawford effect. Even so, geometric optics overstates <i>perceived</i> blur (no diffraction or higher-order aberrations, and no neural adaptation), so the blur is drawn at a scale of 0.7 by default; the "20/xx" figure comes from an empirical fit to uncorrected-acuity data rather than from the picture. For an infant or toddler the retina and visual cortex are still maturing, so even a perfectly corrected eye does not see 20/20 yet.</p>
     </details>
   </section>
 </main>
@@ -137,7 +143,7 @@
   const state = {
     eye: 'OD',
     rx: { OD: { s: -0.25, c: 2.5, a: 180 }, OS: { s: 0.25, c: 2.5, a: 180 } },
-    pupil: 4, acc: 0, view: 'chart', fov: 30, split: true, splitPos: 0.5, photo: null,
+    pupil: 3, acc: 0, scale: 0.7, view: 'chart', fov: 30, split: true, splitPos: 0.5, photo: null,
   };
   const ARCMIN_PER_RAD = 180 / Math.PI * 60;
   const CHART_PX_PER_ARCMIN = 3;   // 20/20 letter = 15 px tall
@@ -171,8 +177,10 @@
       const near = (x, t) => Math.min(Math.abs(x - t), Math.abs(x - t - 180), Math.abs(x - t + 180)) <= 15;
       type = near(ang, 90) ? 'with-the-rule' : near(ang, 0) ? 'against-the-rule' : 'oblique';
     }
-    const effBlur = b1 + b2; // mean diameter of the two axes
-    const mar = Math.sqrt(1 + Math.pow(0.25 * effBlur, 2));
+    // Empirical, pupil-independent estimate fitted to published uncorrected-acuity data
+    // (roughly 1 D -> 20/60, 2 D -> 20/135, 3 D -> 20/220). Astigmatic residuals count by their mean.
+    const effD = (Math.abs(r1) + Math.abs(r2)) / 2;
+    const mar = 1 + 2.2 * Math.pow(effD, 1.4);
     const snellen = Math.round(20 * mar / 5) * 5;
     return { rx, m1, m2, r1, r2, b1, b2, se, ms, mc, ma, type, snellen };
   }
@@ -186,8 +194,8 @@
     lines.push(`Meridian 1 (${A.m1.angle}°): <span class="chip">${fmtD(A.m1.power)} D</span> &nbsp; Meridian 2 (${A.m2.angle}°): <span class="chip">${fmtD(A.m2.power)} D</span>`);
     if (A.type !== 'none') lines.push(`Astigmatism: <span class="chip">${Math.abs(A.rx.c).toFixed(2)} D, ${A.type}</span>`);
     lines.push(`After ${state.acc.toFixed(2)} D of accommodation, leftover defocus: <span class="chip">${fmtD(A.r1)}</span> / <span class="chip">${fmtD(A.r2)}</span> D`);
-    lines.push(`Blur streak (${state.pupil} mm pupil): <span class="chip">${(2*A.b1).toFixed(1)}′</span> along ${A.m1.angle}°, <span class="chip">${(2*A.b2).toFixed(1)}′</span> along ${A.m2.angle}° &nbsp;<span class="hint" style="display:inline">(a 20/20 letter is 5′ tall)</span>`);
-    lines.push(`Very rough acuity estimate: <span class="chip">20/${A.snellen}</span>`);
+    lines.push(`Geometric blur streak (${state.pupil} mm pupil): <span class="chip">${(2*A.b1).toFixed(1)}′</span> along ${A.m1.angle}°, <span class="chip">${(2*A.b2).toFixed(1)}′</span> along ${A.m2.angle}° &nbsp;<span class="hint" style="display:inline">(a 20/20 letter is 5′ tall; drawn at ×${state.scale.toFixed(2)})</span>`);
+    lines.push(`Rough uncorrected acuity (empirical, from the leftover defocus): <span class="chip">20/${A.snellen}</span>`);
     if (A.type !== 'none') {
       const worst = Math.abs(A.r1) >= Math.abs(A.r2) ? A.m1 : A.m2;
       const sharpDir = (worst.angle + 90) % 180;
@@ -307,10 +315,10 @@
   const MAXS = 256;
   function initGL() {
     const vs = `attribute vec2 p; varying vec2 v; void main(){ v = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
-    const fs = `precision highp float; varying vec2 v; uniform sampler2D t; uniform vec2 res; uniform float ra, rb, th; uniform int n;
+    const fs = `precision highp float; varying vec2 v; uniform sampler2D t; uniform vec2 res; uniform float ra, rb, th, k; uniform int n;
       void main(){
         if (n <= 1) { gl_FragColor = texture2D(t, vec2(v.x, 1.0 - v.y)); return; }
-        vec4 acc = vec4(0.); float cs = cos(th), sn = sin(th); float fn = float(n);
+        vec4 acc = vec4(0.); float wsum = 0.0; float cs = cos(th), sn = sin(th); float fn = float(n);
         for (int i = 0; i < ${MAXS}; i++) {
           if (i >= n) break;
           float fi = float(i);
@@ -320,9 +328,10 @@
           vec2 o = vec2(d.x * cs - d.y * sn, d.x * sn + d.y * cs);
           vec2 uv = v + vec2(o.x, o.y) / res;  // y up in v since we flip below
           uv = clamp(uv, 0.0, 1.0);
-          acc += texture2D(t, vec2(uv.x, 1.0 - uv.y));
+          float w = exp(-k * r * r);   // Stiles-Crawford apodization across the pupil
+          acc += w * texture2D(t, vec2(uv.x, 1.0 - uv.y)); wsum += w;
         }
-        gl_FragColor = acc / fn;
+        gl_FragColor = acc / wsum;
       }`;
     const sh = (type, s) => { const h = gl.createShader(type); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
     prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog);
@@ -331,7 +340,7 @@
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    for (const u of ['t','res','ra','rb','th','n']) uni[u] = gl.getUniformLocation(prog, u);
+    for (const u of ['t','res','ra','rb','th','k','n']) uni[u] = gl.getUniformLocation(prog, u);
     tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -343,12 +352,13 @@
   }
   function renderBlur(A) {
     const pxPerArcmin = state.view === 'chart' ? CHART_PX_PER_ARCMIN : src.width / (state.fov * 60);
-    const ra = A.b1 * pxPerArcmin, rb = A.b2 * pxPerArcmin;
+    const ra = A.b1 * pxPerArcmin * state.scale, rb = A.b2 * pxPerArcmin * state.scale;
+    const k = 0.116 * Math.pow(state.pupil / 2, 2);   // SC rho ~0.116 /mm^2, r normalized to pupil radius
     const big = Math.max(ra, rb);
     const n = big < 0.5 ? 1 : Math.min(MAXS, Math.max(48, Math.round(big * 4 + ra * rb * 0.5)));
     gl.viewport(0, 0, glc.width, glc.height);
     gl.uniform1i(uni.t, 0); gl.uniform2f(uni.res, glc.width, glc.height);
-    gl.uniform1f(uni.ra, ra); gl.uniform1f(uni.rb, rb); gl.uniform1f(uni.th, A.m1.angle * Math.PI / 180); gl.uniform1i(uni.n, n);
+    gl.uniform1f(uni.ra, ra); gl.uniform1f(uni.rb, rb); gl.uniform1f(uni.th, A.m1.angle * Math.PI / 180); gl.uniform1f(uni.k, k); gl.uniform1i(uni.n, n);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
@@ -382,7 +392,7 @@
   function syncInputs() {
     const rx = state.rx[state.eye];
     $('sph').value = $('sphN').value = rx.s; $('cyl').value = $('cylN').value = rx.c; $('axis').value = $('axisN').value = rx.a;
-    $('pupil').value = $('pupilN').value = state.pupil; $('acc').value = $('accN').value = state.acc;
+    $('pupil').value = $('pupilN').value = state.pupil; $('acc').value = $('accN').value = state.acc; $('scale').value = $('scaleN').value = state.scale;
   }
   function pair(id, key, obj) {
     const r = $(id), n = $(id + 'N');
@@ -390,7 +400,7 @@
     r.addEventListener('input', () => set(r.value)); n.addEventListener('change', () => set(n.value));
   }
   pair('sph', 's', () => state.rx[state.eye]); pair('cyl', 'c', () => state.rx[state.eye]); pair('axis', 'a', () => state.rx[state.eye]);
-  pair('pupil', 'pupil', () => state); pair('acc', 'acc', () => state);
+  pair('pupil', 'pupil', () => state); pair('acc', 'acc', () => state); pair('scale', 'scale', () => state);
 
   $('eyeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.eye = b.dataset.eye; [...$('eyeSeg').children].forEach(x => x.classList.toggle('on', x === b)); syncInputs(); update(); });
   document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => { const [s, c, a] = b.dataset.preset.split(',').map(Number); Object.assign(state.rx[state.eye], { s, c, a }); syncInputs(); update(); }));
