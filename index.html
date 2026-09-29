@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optometry Visualizer</title>
+<meta name="description" content="Simulate what a person sees through an uncorrected eyeglass prescription (sphere, cylinder, axis) on an eye chart or a scene.">
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #1c1f24; --muted: #5d6470; --line: #d9dde3;
+    --accent: #2f6fed; --accent-ink: #ffffff; --warn: #b45309; --chip: #eef2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a; --panel: #1e2126; --ink: #e8eaee; --muted: #9aa3b0; --line: #333840;
+      --accent: #6b9bff; --accent-ink: #0b1020; --warn: #f5b04c; --chip: #262c3a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .panel + .panel { margin-top: 12px; }
+  .row { display: grid; grid-template-columns: 78px 1fr 64px; gap: 8px; align-items: center; margin: 6px 0; }
+  .row label { font-size: 13px; }
+  .row input[type=range] { width: 100%; }
+  .row input[type=number] { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+  .seg button, .btn { padding: 6px 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 7px; cursor: pointer; font: inherit; font-size: 13px; }
+  .seg button.on, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+  .readout { font-size: 13px; line-height: 1.6; }
+  .readout b { font-weight: 600; }
+  .chip { display: inline-block; background: var(--chip); border-radius: 6px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+  .warn { color: var(--warn); }
+  .view { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .viewbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .viewbar .grow { flex: 1; }
+  .stage { position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; }
+  .stage canvas { display: block; width: 100%; height: auto; }
+  .tag { position: absolute; top: 8px; padding: 3px 8px; font-size: 12px; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; pointer-events: none; }
+  .tag.l { left: 8px; } .tag.r { right: 8px; }
+  .divider { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
+  input[type=file] { font-size: 13px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details p { font-size: 13px; color: var(--muted); }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Optometry Visualizer</h1>
+  <span class="sub">Enter a glasses prescription and see roughly what the uncorrected eye sees.</span>
+</header>
+
+<main>
+  <aside>
+    <div class="panel">
+      <h2>Prescription (plus-cylinder form)</h2>
+      <div class="seg" id="eyeSeg">
+        <button data-eye="OD" class="on">Right eye (OD)</button>
+        <button data-eye="OS">Left eye (OS)</button>
+      </div>
+      <div class="row"><label>Sphere</label><input type="range" id="sph" min="-10" max="10" step="0.25"><input type="number" id="sphN" step="0.25"></div>
+      <div class="row"><label>Cylinder</label><input type="range" id="cyl" min="-6" max="6" step="0.25"><input type="number" id="cylN" step="0.25"></div>
+      <div class="row"><label>Axis</label><input type="range" id="axis" min="0" max="180" step="1"><input type="number" id="axisN" step="1" min="0" max="180"></div>
+      <div class="row"><label>Pupil (mm)</label><input type="range" id="pupil" min="2" max="8" step="0.5" value="4"><input type="number" id="pupilN" step="0.5" value="4"></div>
+      <p class="hint">Cylinder can be entered in plus or minus form; the axis is read the way it is written on the script.</p>
+      <h2 style="margin-top:14px">Presets</h2>
+      <div class="seg">
+        <button class="btn" data-preset="0,0,0">Perfect vision</button>
+        <button class="btn" data-preset="-0.25,2.5,180">−0.25 +2.50 ×180</button>
+        <button class="btn" data-preset="0.25,2.5,180">+0.25 +2.50 ×180</button>
+        <button class="btn" data-preset="-1,0,0">−1.00 sphere</button>
+        <button class="btn" data-preset="-3,0,0">−3.00 sphere</button>
+        <button class="btn" data-preset="0,-1.5,90">−1.50 cyl ×90</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Accommodation (eye's own focusing)</h2>
+      <div class="row"><label>Focus effort</label><input type="range" id="acc" min="0" max="8" step="0.25" value="0"><input type="number" id="accN" step="0.25" value="0"></div>
+      <div class="seg">
+        <button class="btn" data-acc="relaxed">Relaxed</button>
+        <button class="btn" data-acc="m1">Focus meridian 1</button>
+        <button class="btn" data-acc="m2">Focus meridian 2</button>
+        <button class="btn" data-acc="clc">Least confusion</button>
+      </div>
+      <p class="hint">A young child has a lot of accommodation and can "lens away" farsightedness, but not astigmatism: focusing one meridian throws the other one out. Try the buttons to see the two possible sharp directions.</p>
+    </div>
+
+    <div class="panel">
+      <h2>What the numbers mean</h2>
+      <div class="readout" id="readout"></div>
+    </div>
+  </aside>
+
+  <section class="view">
+    <div class="viewbar">
+      <div class="seg" id="viewSeg" style="margin:0">
+        <button data-view="chart" class="on">Eye chart</button>
+        <button data-view="scene">Landscape</button>
+        <button data-view="photo">Your photo</button>
+      </div>
+      <input type="file" id="photoFile" accept="image/*" style="display:none">
+      <div class="grow"></div>
+      <label style="font-size:13px"><input type="checkbox" id="split" checked> Split: corrected | uncorrected</label>
+      <input type="range" id="splitPos" min="0" max="100" value="50" style="width:120px">
+    </div>
+    <div class="viewbar" id="fovBar">
+      <label style="font-size:13px">Field of view shown: <span id="fovVal">30</span>°</label>
+      <input type="range" id="fov" min="10" max="60" value="30" style="width:160px">
+      <span class="hint" style="margin:0">Narrower = zoomed in, so blur looks bigger on screen. The chart is always drawn at true Snellen angles.</span>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="out"></canvas>
+      <div class="tag l" id="tagL">Corrected</div>
+      <div class="tag r" id="tagR">Uncorrected</div>
+      <div class="divider" id="dividerEl"></div>
+    </div>
+    <details style="margin-top:10px">
+      <summary>How the simulation works, and its limits</summary>
+      <p>The refraction is split into its two principal meridians. After subtracting any accommodation, each meridian's leftover defocus (in diopters) spreads a point of light into a line whose angular length is roughly <i>pupil diameter × defocus</i>. Both meridians together make an elliptical blur patch, which is convolved with the image using WebGL. This is plain geometric optics: it ignores diffraction, higher-order aberrations, the Stiles–Crawford effect and neural adaptation, so real perception is a little sharper than shown, and the "20/xx" estimate is a rough rule of thumb, not a measurement. For an infant or toddler the retina and visual cortex are still maturing, so even a perfectly corrected eye does not see 20/20 yet.</p>
+    </details>
+  </section>
+</main>
+<footer>Educational tool only. Not medical advice. Ask your eye doctor about your child's prescription.</footer>
+
+<script>
+(() => {
+  // ---------- state ----------
+  const state = {
+    eye: 'OD',
+    rx: { OD: { s: -0.25, c: 2.5, a: 180 }, OS: { s: 0.25, c: 2.5, a: 180 } },
+    pupil: 4, acc: 0, view: 'chart', fov: 30, split: true, splitPos: 0.5, photo: null,
+  };
+  const ARCMIN_PER_RAD = 180 / Math.PI * 60;
+  const CHART_PX_PER_ARCMIN = 3;   // 20/20 letter = 15 px tall
+
+  const $ = id => document.getElementById(id);
+
+  // ---------- optics ----------
+  function meridians(rx) {
+    // plus- or minus-cyl input; power along the axis meridian = sphere, along axis+90 = sphere + cyl
+    const m1 = { angle: rx.a % 180, power: rx.s };
+    const m2 = { angle: (rx.a + 90) % 180, power: rx.s + rx.c };
+    return [m1, m2];
+  }
+  function blurRadiusArcmin(defocusD, pupilMm) {
+    // geometric line-spread half-length: pupil * |defocus| radians, halved
+    return 0.5 * (pupilMm / 1000) * Math.abs(defocusD) * ARCMIN_PER_RAD;
+  }
+  function analyse() {
+    const rx = state.rx[state.eye];
+    const [m1, m2] = meridians(rx);
+    const r1 = m1.power - state.acc, r2 = m2.power - state.acc;
+    const b1 = blurRadiusArcmin(r1, state.pupil), b2 = blurRadiusArcmin(r2, state.pupil);
+    const se = rx.s + rx.c / 2;
+    // minus-cyl transposition
+    let ms = rx.s, mc = rx.c, ma = rx.a;
+    if (rx.c > 0) { ms = rx.s + rx.c; mc = -rx.c; ma = (rx.a + 90) % 180; }
+    const steep = rx.c >= 0 ? m2 : m1; // meridian with more plus power
+    let type = 'none';
+    if (Math.abs(rx.c) >= 0.25) {
+      const ang = steep.angle;
+      const near = (x, t) => Math.min(Math.abs(x - t), Math.abs(x - t - 180), Math.abs(x - t + 180)) <= 15;
+      type = near(ang, 90) ? 'with-the-rule' : near(ang, 0) ? 'against-the-rule' : 'oblique';
+    }
+    const effBlur = b1 + b2; // mean diameter of the two axes
+    const mar = Math.sqrt(1 + Math.pow(0.25 * effBlur, 2));
+    const snellen = Math.round(20 * mar / 5) * 5;
+    return { rx, m1, m2, r1, r2, b1, b2, se, ms, mc, ma, type, snellen };
+  }
+  const fmtD = x => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2);
+
+  function renderReadout(A) {
+    const lines = [];
+    lines.push(`<b>${state.eye}</b>: ${fmtD(A.rx.s)} ${fmtD(A.rx.c)} × ${A.rx.a}` +
+      (Math.abs(A.rx.c) >= 0.25 ? ` &nbsp;<span class="hint" style="display:inline">(minus-cyl: ${fmtD(A.ms)} ${fmtD(A.mc)} × ${A.ma})</span>` : ''));
+    lines.push(`Spherical equivalent <span class="chip">${fmtD(A.se)} D</span>`);
+    lines.push(`Meridian 1 (${A.m1.angle}°): <span class="chip">${fmtD(A.m1.power)} D</span> &nbsp; Meridian 2 (${A.m2.angle}°): <span class="chip">${fmtD(A.m2.power)} D</span>`);
+    if (A.type !== 'none') lines.push(`Astigmatism: <span class="chip">${Math.abs(A.rx.c).toFixed(2)} D, ${A.type}</span>`);
+    lines.push(`After ${state.acc.toFixed(2)} D of accommodation, leftover defocus: <span class="chip">${fmtD(A.r1)}</span> / <span class="chip">${fmtD(A.r2)}</span> D`);
+    lines.push(`Blur streak (${state.pupil} mm pupil): <span class="chip">${(2*A.b1).toFixed(1)}′</span> along ${A.m1.angle}°, <span class="chip">${(2*A.b2).toFixed(1)}′</span> along ${A.m2.angle}° &nbsp;<span class="hint" style="display:inline">(a 20/20 letter is 5′ tall)</span>`);
+    lines.push(`Very rough acuity estimate: <span class="chip">20/${A.snellen}</span>`);
+    if (A.type !== 'none') {
+      const worst = Math.abs(A.r1) >= Math.abs(A.r2) ? A.m1 : A.m2;
+      const sharpDir = (worst.angle + 90) % 180;
+      lines.push(`<span class="warn">Edges running along ${sharpDir}° stay sharpest; edges running along ${worst.angle}° smear the most.</span>`);
+    }
+    $('readout').innerHTML = lines.join('<br>');
+  }
+
+  // ---------- source images ----------
+  const src = document.createElement('canvas');
+  const sctx = src.getContext('2d');
+
+  // 5x5 Snellen-style optotypes
+  const GLYPH = {
+    E: ['11111','10000','11111','10000','11111'],
+    F: ['11111','10000','11110','10000','10000'],
+    P: ['11111','10001','11111','10000','10000'],
+    T: ['11111','00100','00100','00100','00100'],
+    O: ['11111','10001','10001','10001','11111'],
+    Z: ['11111','00010','00100','01000','11111'],
+    L: ['10000','10000','10000','10000','11111'],
+    D: ['11110','10001','10001','10001','11110'],
+    C: ['11111','10000','10000','10000','11111'],
+  };
+  const ROWS = [
+    { d: 200, t: 'E' }, { d: 100, t: 'FP' }, { d: 70, t: 'TOZ' }, { d: 50, t: 'LPED' },
+    { d: 40, t: 'PECFD' }, { d: 30, t: 'EDFCZP' }, { d: 25, t: 'FELOPZD' }, { d: 20, t: 'DEFPOTEC' },
+  ];
+  function drawGlyph(ctx, ch, x, y, h) {
+    const u = h / 5, g = GLYPH[ch];
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) if (g[r][c] === '1') ctx.fillRect(x + c * u, y + r * u, u + 0.3, u + 0.3);
+  }
+  function drawChart() {
+    const W = 900, H = 1000; src.width = W; src.height = H;
+    sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, W, H);
+    sctx.fillStyle = '#000';
+    let y = 40;
+    sctx.font = '14px system-ui, sans-serif'; sctx.textAlign = 'left';
+    for (const row of ROWS) {
+      const h = (row.d / 20) * 5 * CHART_PX_PER_ARCMIN;  // letter height in px
+      const gap = h * 1.0;
+      const total = row.t.length * h + (row.t.length - 1) * gap;
+      let x = (W - total) / 2 + 30;
+      for (const ch of row.t) { drawGlyph(sctx, ch, x, y, h); x += h + gap; }
+      sctx.fillStyle = '#666'; sctx.fillText('20/' + row.d, 20, y + h / 2 + 5); sctx.fillStyle = '#000';
+      y += h + Math.max(28, h * 0.55);
+    }
+    sctx.fillStyle = '#888'; sctx.font = '13px system-ui, sans-serif'; sctx.textAlign = 'center';
+    sctx.fillText('Letters drawn at true Snellen angles: 20/20 = 5 arcmin tall', W / 2, H - 16);
+  }
+
+  function drawScene() {
+    const W = 900, H = 600; src.width = W; src.height = H;
+    const c = sctx;
+    // sky
+    let g = c.createLinearGradient(0, 0, 0, H * 0.6); g.addColorStop(0, '#5aa2e6'); g.addColorStop(1, '#cfe6fb');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    // sun
+    c.fillStyle = '#fff3b0'; c.beginPath(); c.arc(740, 95, 38, 0, Math.PI * 2); c.fill();
+    // clouds
+    c.fillStyle = 'rgba(255,255,255,.95)';
+    const cloud = (x, y, s) => { for (const [dx, dy, r] of [[0,0,22],[24,-10,26],[50,0,20],[26,10,18]]) { c.beginPath(); c.arc(x + dx * s, y + dy * s, r * s, 0, 7); c.fill(); } };
+    cloud(120, 90, 1.1); cloud(380, 60, 0.8); cloud(560, 130, 0.7);
+    // mountains
+    c.fillStyle = '#7e8fa8'; c.beginPath(); c.moveTo(0, 330); c.lineTo(140, 190); c.lineTo(260, 300); c.lineTo(380, 170); c.lineTo(520, 320); c.lineTo(640, 220); c.lineTo(780, 330); c.lineTo(900, 250); c.lineTo(900, 360); c.lineTo(0, 360); c.fill();
+    c.fillStyle = '#f2f6fa'; c.beginPath(); c.moveTo(380, 170); c.lineTo(350, 205); c.lineTo(372, 200); c.lineTo(392, 212); c.lineTo(410, 200); c.fill();
+    // hills
+    c.fillStyle = '#6fae5a'; c.beginPath(); c.moveTo(0, 380); c.quadraticCurveTo(200, 290, 450, 370); c.quadraticCurveTo(700, 300, 900, 380); c.lineTo(900, 420); c.lineTo(0, 420); c.fill();
+    // ground
+    g = c.createLinearGradient(0, 400, 0, H); g.addColorStop(0, '#79b862'); g.addColorStop(1, '#4f8f3f');
+    c.fillStyle = g; c.fillRect(0, 400, W, H - 400);
+    // road
+    c.fillStyle = '#555'; c.beginPath(); c.moveTo(420, 400); c.lineTo(480, 400); c.lineTo(760, H); c.lineTo(140, H); c.fill();
+    c.strokeStyle = '#f4d35e'; c.lineWidth = 4; c.setLineDash([26, 22]); c.beginPath(); c.moveTo(450, 400); c.lineTo(450, H); c.stroke(); c.setLineDash([]);
+    // fence (horizontal rails + vertical posts -> shows directional blur)
+    c.strokeStyle = '#8b5a2b'; c.lineWidth = 4;
+    for (const y of [470, 495, 520]) { c.beginPath(); c.moveTo(0, y); c.lineTo(400, y - 40); c.stroke(); }
+    for (let x = 20; x < 400; x += 48) { c.beginPath(); c.moveTo(x, 455 - x * 0.1); c.lineTo(x, 535 - x * 0.1); c.stroke(); }
+    // trees
+    const tree = (x, y, s) => { c.fillStyle = '#6b4423'; c.fillRect(x - 6 * s, y - 40 * s, 12 * s, 40 * s); c.fillStyle = '#2f7a3a'; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(x, y - (110 - i * 22) * s); c.lineTo(x - (48 - i * 8) * s, y - (40 - i * 22) * s); c.lineTo(x + (48 - i * 8) * s, y - (40 - i * 22) * s); c.fill(); } };
+    tree(90, 400, 0.6); tree(160, 410, 0.8); tree(830, 420, 0.9); tree(880, 405, 0.6);
+    // house
+    c.fillStyle = '#d9c3a3'; c.fillRect(600, 330, 130, 90);
+    c.fillStyle = '#a0402b'; c.beginPath(); c.moveTo(590, 332); c.lineTo(665, 275); c.lineTo(740, 332); c.fill();
+    c.fillStyle = '#4a6fa5'; c.fillRect(615, 350, 26, 26); c.fillRect(690, 350, 26, 26);
+    c.fillStyle = '#5a3a1a'; c.fillRect(652, 375, 26, 45);
+    c.strokeStyle = '#fff'; c.lineWidth = 2;
+    for (const [x, y] of [[615,350],[690,350]]) { c.beginPath(); c.moveTo(x + 13, y); c.lineTo(x + 13, y + 26); c.moveTo(x, y + 13); c.lineTo(x + 26, y + 13); c.stroke(); }
+    // stop sign
+    c.fillStyle = '#c62828'; c.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; c.lineTo(540 + 36 * Math.cos(a), 470 + 36 * Math.sin(a)); } c.fill();
+    c.fillStyle = '#eee'; c.fillRect(537, 500, 6, 70);
+    c.fillStyle = '#fff'; c.font = 'bold 22px system-ui, sans-serif'; c.textAlign = 'center'; c.fillText('STOP', 540, 478);
+    // speed sign
+    c.fillStyle = '#fff'; c.fillRect(300, 440, 60, 76); c.strokeStyle = '#222'; c.lineWidth = 2; c.strokeRect(300, 440, 60, 76);
+    c.fillStyle = '#333'; c.fillRect(327, 516, 6, 60);
+    c.fillStyle = '#111'; c.font = 'bold 11px system-ui, sans-serif'; c.fillText('SPEED', 330, 456); c.fillText('LIMIT', 330, 469);
+    c.font = 'bold 30px system-ui, sans-serif'; c.fillText('25', 330, 502);
+    // birds
+    c.strokeStyle = '#333'; c.lineWidth = 2;
+    for (const [x, y] of [[250, 130], [275, 120], [300, 140]]) { c.beginPath(); c.moveTo(x - 8, y); c.quadraticCurveTo(x - 4, y - 6, x, y); c.quadraticCurveTo(x + 4, y - 6, x + 8, y); c.stroke(); }
+    // caption
+    c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, H - 26, W, 26);
+    c.fillStyle = '#fff'; c.font = '13px system-ui, sans-serif'; c.textAlign = 'left';
+    c.fillText('Notice the fence: horizontal rails and vertical posts blur differently with astigmatism.', 10, H - 9);
+  }
+
+  function drawPhoto() {
+    const img = state.photo;
+    const W = 900, H = Math.round(900 * img.naturalHeight / img.naturalWidth);
+    src.width = W; src.height = H; sctx.drawImage(img, 0, 0, W, H);
+  }
+
+  // ---------- WebGL blur ----------
+  const glc = document.createElement('canvas');
+  const gl = glc.getContext('webgl', { preserveDrawingBuffer: true, premultipliedAlpha: false });
+  let prog, tex, uni = {};
+  const MAXS = 256;
+  function initGL() {
+    const vs = `attribute vec2 p; varying vec2 v; void main(){ v = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
+    const fs = `precision highp float; varying vec2 v; uniform sampler2D t; uniform vec2 res; uniform float ra, rb, th; uniform int n;
+      void main(){
+        if (n <= 1) { gl_FragColor = texture2D(t, vec2(v.x, 1.0 - v.y)); return; }
+        vec4 acc = vec4(0.); float cs = cos(th), sn = sin(th); float fn = float(n);
+        for (int i = 0; i < ${MAXS}; i++) {
+          if (i >= n) break;
+          float fi = float(i);
+          float r = sqrt((fi + 0.5) / fn); float ph = fi * 2.39996323;
+          vec2 d = vec2(r * cos(ph) * ra, r * sin(ph) * rb);
+          // rotate: meridian-1 direction at angle th (CCW from horizontal, y up)
+          vec2 o = vec2(d.x * cs - d.y * sn, d.x * sn + d.y * cs);
+          vec2 uv = v + vec2(o.x, o.y) / res;  // y up in v since we flip below
+          uv = clamp(uv, 0.0, 1.0);
+          acc += texture2D(t, vec2(uv.x, 1.0 - uv.y));
+        }
+        gl_FragColor = acc / fn;
+      }`;
+    const sh = (type, s) => { const h = gl.createShader(type); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
+    prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    for (const u of ['t','res','ra','rb','th','n']) uni[u] = gl.getUniformLocation(prog, u);
+    tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  }
+  function uploadSource() {
+    glc.width = src.width; glc.height = src.height;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  }
+  function renderBlur(A) {
+    const pxPerArcmin = state.view === 'chart' ? CHART_PX_PER_ARCMIN : src.width / (state.fov * 60);
+    const ra = A.b1 * pxPerArcmin, rb = A.b2 * pxPerArcmin;
+    const big = Math.max(ra, rb);
+    const n = big < 0.5 ? 1 : Math.min(MAXS, Math.max(48, Math.round(big * 4 + ra * rb * 0.5)));
+    gl.viewport(0, 0, glc.width, glc.height);
+    gl.uniform1i(uni.t, 0); gl.uniform2f(uni.res, glc.width, glc.height);
+    gl.uniform1f(uni.ra, ra); gl.uniform1f(uni.rb, rb); gl.uniform1f(uni.th, A.m1.angle * Math.PI / 180); gl.uniform1i(uni.n, n);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // ---------- compose ----------
+  const out = $('out'), octx = out.getContext('2d');
+  function compose() {
+    out.width = src.width; out.height = src.height;
+    octx.drawImage(glc, 0, 0);
+    const show = state.split;
+    $('tagL').style.display = show ? '' : 'none'; $('dividerEl').style.display = show ? '' : 'none';
+    if (show) {
+      const x = Math.round(out.width * state.splitPos);
+      octx.drawImage(src, 0, 0, x, out.height, 0, 0, x, out.height);
+      $('dividerEl').style.left = (state.splitPos * 100) + '%';
+    }
+  }
+  function redrawSource() {
+    if (state.view === 'chart') drawChart();
+    else if (state.view === 'scene') drawScene();
+    else if (state.photo) drawPhoto(); else drawScene();
+    uploadSource();
+  }
+  function update() {
+    const A = analyse();
+    renderReadout(A);
+    renderBlur(A);
+    compose();
+  }
+
+  // ---------- UI wiring ----------
+  function syncInputs() {
+    const rx = state.rx[state.eye];
+    $('sph').value = $('sphN').value = rx.s; $('cyl').value = $('cylN').value = rx.c; $('axis').value = $('axisN').value = rx.a;
+    $('pupil').value = $('pupilN').value = state.pupil; $('acc').value = $('accN').value = state.acc;
+  }
+  function pair(id, key, obj) {
+    const r = $(id), n = $(id + 'N');
+    const set = v => { v = Number(v); if (isNaN(v)) return; obj()[key] = v; r.value = n.value = v; update(); };
+    r.addEventListener('input', () => set(r.value)); n.addEventListener('change', () => set(n.value));
+  }
+  pair('sph', 's', () => state.rx[state.eye]); pair('cyl', 'c', () => state.rx[state.eye]); pair('axis', 'a', () => state.rx[state.eye]);
+  pair('pupil', 'pupil', () => state); pair('acc', 'acc', () => state);
+
+  $('eyeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.eye = b.dataset.eye; [...$('eyeSeg').children].forEach(x => x.classList.toggle('on', x === b)); syncInputs(); update(); });
+  document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => { const [s, c, a] = b.dataset.preset.split(',').map(Number); Object.assign(state.rx[state.eye], { s, c, a }); syncInputs(); update(); }));
+  document.querySelectorAll('[data-acc]').forEach(b => b.addEventListener('click', () => {
+    const [m1, m2] = meridians(state.rx[state.eye]); let a = 0;
+    if (b.dataset.acc === 'm1') a = m1.power; else if (b.dataset.acc === 'm2') a = m2.power; else if (b.dataset.acc === 'clc') a = (m1.power + m2.power) / 2;
+    state.acc = Math.max(0, Math.round(a * 4) / 4); syncInputs(); update();
+  }));
+  $('viewSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.view === 'photo' && !state.photo) { $('photoFile').click(); return; }
+    state.view = b.dataset.view; [...$('viewSeg').children].forEach(x => x.classList.toggle('on', x === b));
+    $('fovBar').style.display = state.view === 'chart' ? 'none' : '';
+    redrawSource(); update();
+  });
+  $('photoFile').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = new Image(); img.onload = () => { state.photo = img; state.view = 'photo'; [...$('viewSeg').children].forEach(x => x.classList.toggle('on', x.dataset.view === 'photo')); $('fovBar').style.display = ''; redrawSource(); update(); URL.revokeObjectURL(img.src); };
+    img.src = URL.createObjectURL(f);
+  });
+  $('split').addEventListener('change', e => { state.split = e.target.checked; compose(); });
+  $('splitPos').addEventListener('input', e => { state.splitPos = e.target.value / 100; compose(); });
+  $('fov').addEventListener('input', e => { state.fov = Number(e.target.value); $('fovVal').textContent = state.fov; update(); });
+  $('stage').addEventListener('pointermove', e => { if (e.buttons !== 1 || !state.split) return; const r = out.getBoundingClientRect(); state.splitPos = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); $('splitPos').value = state.splitPos * 100; compose(); });
+  $('stage').addEventListener('pointerdown', e => { if (!state.split) return; const r = out.getBoundingClientRect(); state.splitPos = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); $('splitPos').value = state.splitPos * 100; compose(); });
+
+  // URL params: ?s=-0.25&c=2.5&a=180
+  const q = new URLSearchParams(location.search);
+  if (q.has('s') || q.has('c')) Object.assign(state.rx.OD, { s: Number(q.get('s') || 0), c: Number(q.get('c') || 0), a: Number(q.get('a') || 180) });
+
+  try { initGL(); } catch (err) { document.querySelector('.stage').innerHTML = '<p style="color:#fff;padding:20px">WebGL is not available in this browser: ' + err.message + '</p>'; return; }
+  $('fovBar').style.display = 'none';
+  syncInputs(); redrawSource(); update();
+})();
+</script>
+</body>
+</html>
