@@ -4,27 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Optometry Visualizer</title>
-<meta name="description" content="Simulate what a person sees through an uncorrected eyeglass prescription (sphere, cylinder, axis) on an eye chart or a scene.">
+<meta name="description" content="Simulate what a person sees through an uncorrected eyeglass prescription (sphere, cylinder, axis) on an eye chart or a scene. Created by Cardone Medical Consulting, LLC.">
+<meta name="theme-color" content="#145C60">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
 <style>
+  /* Cardone Medical teal brand: deep teal #145C60, sea glass #A7CEC7, ivory #F5F3EC */
   :root {
-    --bg: #f4f5f7; --panel: #ffffff; --ink: #1c1f24; --muted: #5d6470; --line: #d9dde3;
-    --accent: #2f6fed; --accent-ink: #ffffff; --warn: #b45309; --chip: #eef2ff;
+    --teal: #145C60; --seaglass: #A7CEC7; --ivory: #F5F3EC;
+    --bg: #F5F3EC; --panel: #ffffff; --ink: #1c2a2b; --muted: #5a6a6b; --line: #dde4e0;
+    --accent: #145C60; --accent-ink: #ffffff; --warn: #8a5a12; --chip: #e4efec;
+    --header: #145C60; --header-ink: #ffffff; --header-sub: #A7CEC7;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #14161a; --panel: #1e2126; --ink: #e8eaee; --muted: #9aa3b0; --line: #333840;
-      --accent: #6b9bff; --accent-ink: #0b1020; --warn: #f5b04c; --chip: #262c3a;
+      --bg: #0e1f21; --panel: #163033; --ink: #eef2ef; --muted: #a7cec7; --line: #27494c;
+      --accent: #A7CEC7; --accent-ink: #0e1f21; --warn: #e2b46a; --chip: #1e4044;
+      --header: #0b1a1c; --header-ink: #ffffff; --header-sub: #A7CEC7;
     }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
-  header h1 { font-size: 18px; margin: 0; }
-  header .sub { color: var(--muted); font-size: 13px; }
+  header { padding: 12px 20px; background: var(--header); color: var(--header-ink); display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  header .logo { height: 46px; width: auto; display: block; }
+  header .rule { width: 1px; height: 34px; background: rgba(255,255,255,.28); }
+  header h1 { font: 700 20px/1.2 Georgia, "Times New Roman", serif; margin: 0; letter-spacing: .01em; }
+  header .sub { color: var(--header-sub); font-size: 13px; }
+  @media (max-width: 640px) { header .rule, header .sub { display: none; } header .logo { height: 32px; } }
+  input[type=range] { accent-color: var(--accent); }
+  input[type=checkbox] { accent-color: var(--accent); }
   main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; max-width: 1500px; margin: 0 auto; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .panel h2 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin: 0 0 10px; font-weight: 600; }
   .panel + .panel { margin-top: 12px; }
   .row { display: grid; grid-template-columns: 78px 1fr 64px; gap: 8px; align-items: center; margin: 6px 0; }
   .row label { font-size: 13px; }
@@ -33,6 +47,7 @@
   .seg { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
   .seg button, .btn { padding: 6px 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 7px; cursor: pointer; font: inherit; font-size: 13px; }
   .seg button.on, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .seg button:hover:not(.on), .btn:hover:not(.primary) { border-color: var(--accent); }
   .hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
   .readout { font-size: 13px; line-height: 1.6; }
   .readout b { font-weight: 600; }
@@ -49,11 +64,14 @@
   input[type=file] { font-size: 13px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   details p { font-size: 13px; color: var(--muted); }
-  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 22px 20px 28px; border-top: 1px solid var(--line); margin-top: 8px; }
+  footer .brand { font-family: Georgia, "Times New Roman", serif; color: var(--accent); font-weight: 700; letter-spacing: .02em; }
 </style>
 </head>
 <body>
 <header>
+  <img class="logo" src="brand/cardone-horizontal-white.svg" alt="Cardone Medical Consulting">
+  <span class="rule" aria-hidden="true"></span>
   <h1>Optometry Visualizer</h1>
   <span class="sub">Enter a glasses prescription and see roughly what the uncorrected eye sees.</span>
 </header>
@@ -135,7 +153,7 @@
     </details>
   </section>
 </main>
-<footer>Educational tool only. Not medical advice. Ask your eye doctor about your child's prescription.</footer>
+<footer><span class="brand">&copy; 2026 Cardone Medical Consulting, LLC</span><br>Educational tool only. It is not medical advice. Ask your eye doctor about your prescription or your child's.</footer>
 
 <script>
 (() => {

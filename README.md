@@ -6,7 +6,7 @@ A single-page, dependency-free simulator of what an *uncorrected* eye sees throu
 - a built-in landscape scene with a fence, road signs and text (good for seeing directional astigmatic blur),
 - any photo you upload (stays in your browser; nothing is sent anywhere).
 
-Everything is in `index.html`. No build step, no dependencies. Needs a browser with WebGL (any modern desktop or phone browser).
+Everything is in `index.html`; the `brand/` folder and favicons carry the Cardone Medical Consulting teal brand (deep teal #145C60, sea glass #A7CEC7, ivory #F5F3EC). No build step, no dependencies. Needs a browser with WebGL (any modern desktop or phone browser).
 
 ## Run it
 
@@ -30,4 +30,4 @@ Pure geometric optics overstates how blurry things *look* to the person: it igno
 
 ## License
 
-MIT
+Code is MIT. The Cardone Medical Consulting name, logo and brand assets in `brand/` and the favicons are © 2026 Cardone Medical Consulting, LLC and are not covered by the MIT license.
